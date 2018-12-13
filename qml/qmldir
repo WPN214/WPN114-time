@@ -1,0 +1,5 @@
+module WPN114.Time
+typeinfo plugins.qmltypes
+plugin WPN114-time
+classname qml_plugin
+depends WPN114.Audio 1.0
