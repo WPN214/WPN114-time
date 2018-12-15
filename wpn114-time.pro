@@ -9,6 +9,7 @@ else {
     QML_MODULE_DESTDIR = $$[QT_INSTALL_QML]
 }
 
+QMLDIR_FILES += $$PWD/qml/qmldir
 for(FILE,QMLDIR_FILES) {
     QMAKE_POST_LINK += $$quote(cp $${FILE} $${DESTDIR}$$escape_expand(\n\t))
 }
@@ -16,7 +17,7 @@ for(FILE,QMLDIR_FILES) {
 WPN114_AUDIO_REPOSITORY = ../WPN114-audio
 INCLUDEPATH += $$WPN114_AUDIO_REPOSITORY
 LIBS += -L$$QML_MODULE_DESTDIR/WPN114/Audio -lWPN114-audio
-QMAKE_LFLAGS += -Wl,-rpath,$$QML_MODULE_DESTDIR/WPN114/Audio
+QMAKE_RPATHDIR += $$QML_MODULE_DESTDIR/WPN114/Audio
 
 HEADERS += $$PWD/source/time.hpp
 SOURCES += $$PWD/source/time.cpp
