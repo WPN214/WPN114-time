@@ -1,0 +1,53 @@
+import QtQuick.tooling 1.2
+
+Module
+{
+    Component
+    {
+        name: "TimeNode"
+        prototype: "QObject"
+        exports: ["WPN114.Time/TimeNode 1.0"]
+        defaultProperty: "subnodes"
+
+        Property { name: "parentNode"; type: "TimeNode" }
+        Property { name: "source"; type: "WorldStream" }
+        Property { name: "date"; type: "real" }
+        Property { name: "duration"; type: "real" }
+        Property { name: "after"; type: "TimeNode" }
+        Property { name: "condition"; type: "bool" }
+        Property { name: "running"; type: "bool" }
+        Property { name: "startExpression"; type: "bool" }
+        Property { name: "endExpression"; type: "bool" }
+        Property { name: "subnodes"; type: "TimeNode"; isList: true }
+
+        Method { name: "sec"; type: "real"; Parameter { name: "s"; type: "real" } }
+        Method { name: "min"; type: "real"; Parameter { name: "m"; type: "real" } }
+
+        Enum { name: "Duration"; values: { "Infinite": -1 } }
+    }
+
+    Component
+    {
+        name: "Automation"
+        prototype: "TimeNode"
+        exports: ["WPN114.Time/Automation 1.0"]
+
+        Property { name: "from"; type: "real" }
+        Property { name: "to"; type: "real" }
+        Property { name: "target"; type: "QObject" }
+        Property { name: "property"; type: "string" }
+
+    }
+
+    Component
+    {
+        name: "Loop"
+        prototype: "TimeNode"
+        exports: ["WPN114.Time/Loop 1.0"]
+
+        Property { name: "times"; type: "int" }
+        Property { name: "pattern"; type: "TimeNode" }
+
+        Signal { name: "loop"; Parameter { name: "count"; type: "int" }}
+    }
+}
