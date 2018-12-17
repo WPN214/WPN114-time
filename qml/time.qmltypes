@@ -23,6 +23,9 @@ Module
         Method { name: "sec"; type: "real"; Parameter { name: "s"; type: "real" } }
         Method { name: "min"; type: "real"; Parameter { name: "m"; type: "real" } }
 
+        Signal { name: "start" }
+        Signal { name: "end" }
+
         Enum { name: "Duration"; values: { "Infinite": -1 } }
     }
 
