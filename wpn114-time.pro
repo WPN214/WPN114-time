@@ -11,6 +11,8 @@ else {
 
 QMLDIR_FILES += $$PWD/qml/qmldir
 QMLDIR_FILES += $$PWD/qml/time.qmltypes
+OTHER_FILES = $$QMLDIR_FILES
+
 for(FILE,QMLDIR_FILES) {
     QMAKE_POST_LINK += $$quote(cp $${FILE} $${DESTDIR}$$escape_expand(\n\t))
 }
