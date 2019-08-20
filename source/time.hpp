@@ -1,212 +1,221 @@
 #ifndef AUDIOCLOCK_HPP
 #define AUDIOCLOCK_HPP
 
-#include <source/audio.hpp>
-#include <math.h>
-#include <QQmlProperty>
-#include <QMetaProperty>
+#include <wpn114audio/graph.hpp>
 
-class TimeNode : public QObject, public QQmlParserStatus
+//=================================================================================================
+class TimeNode : public Node
+//=================================================================================================
 {
-    Q_OBJECT
+    Q_OBJECT    
 
-    Q_CLASSINFO     ( "DefaultProperty", "subnodes" )
-    Q_INTERFACES    ( QQmlParserStatus )
+    WPN_DECLARE_DEFAULT_AUDIO_INPUT     (begin, 1)
+    WPN_DECLARE_AUDIO_INPUT             (end_in, 1)
+    WPN_DECLARE_AUDIO_INPUT             (duration, 1)
+    WPN_DECLARE_AUDIO_INPUT             (speed, 1)
+    WPN_DECLARE_AUDIO_INPUT             (wait, 1)
+    WPN_DECLARE_AUDIO_INPUT             (cancel, 1)
+    WPN_DECLARE_DEFAULT_AUDIO_OUTPUT    (end_out, 1)
 
-    Q_PROPERTY  ( TimeNode* parentNode READ parentNode WRITE setParentNode NOTIFY parentNodeChanged )
-    Q_PROPERTY  ( WorldStream* source READ source WRITE setSource NOTIFY sourceChanged )
-    Q_PROPERTY  ( qreal date READ date WRITE setDate )
-    Q_PROPERTY  ( qreal duration READ duration WRITE setDuration )
-    Q_PROPERTY  ( QQmlListProperty<TimeNode> subnodes READ subnodes )
-    Q_PROPERTY  ( TimeNode* after READ follow WRITE setFollow NOTIFY afterChanged )
-    Q_PROPERTY  ( bool condition READ condition WRITE setCondition NOTIFY conditionChanged )
-    Q_PROPERTY  ( bool running READ running )
-    Q_PROPERTY  ( bool startExpression READ startExpression WRITE setStartExpression NOTIFY startExpressionChanged )
-    Q_PROPERTY  ( bool endExpression READ endExpression WRITE setEndExpression NOTIFY endExpressionChanged )
+protected:
 
-    public:
-    TimeNode();
-    TimeNode(const TimeNode& copy);
+    sample_t
+    m_phase = 0,
+    m_rate = 0;
 
-    virtual void componentComplete() override;
-    virtual void classBegin() override {}
+    enum inputs     { begin, end_in, duration, speed, wait, cancel };
+    enum outputs    { end_out };
+    enum state      { off, waiting, running, ended };
 
-    Q_INVOKABLE qreal sec(qreal s) { return s*1000.0; }
-    Q_INVOKABLE qreal min(qreal m)
-    {
-        quint64 s = floor(m);
-        return (s*60.0+((m-s)*100.0))*1000.0;
-    }
+    state
+    m_state = off;
 
+public:
+
+    //---------------------------------------------------------------------------------------------
+    Q_SIGNAL void
+    start();
+
+    Q_SIGNAL void
+    end();
+
+    //---------------------------------------------------------------------------------------------
     enum Duration
+    //---------------------------------------------------------------------------------------------
     {
         Infinite = -1
     };
 
-    Q_ENUM ( Duration )
+    Q_ENUM (Duration)
 
-    QQmlListProperty<TimeNode>  subnodes();
-    const QVector<TimeNode*>&   getSubnodes() const { return m_subnodes; }
+    //---------------------------------------------------------------------------------------------
+    TimeNode()
+    //---------------------------------------------------------------------------------------------
+    {
+        m_dispatch = Dispatch::Parallel;
+    }
 
-    virtual void appendSubnode  ( TimeNode* );
-    virtual int subnodesCount   ( ) const;
-    virtual TimeNode* subnode   ( int ) const;
-    virtual void clearSubnodes  ( );
+    //---------------------------------------------------------------------------------------------
+    virtual void
+    initialize(Graph::properties const& properties) override
+    //---------------------------------------------------------------------------------------------
+    {
+        m_rate = properties.rate;
+    }
 
-    bool hasStartExpression ( ) const { return m_has_start_expression; }
-    bool hasEndExpression   ( ) const { return m_has_end_expression; }
+    //---------------------------------------------------------------------------------------------
+    virtual void
+    on_rate_changed(sample_t rate) override
+    //---------------------------------------------------------------------------------------------
+    {
+        m_rate = rate;
+    }
 
-    bool startExpression  ( ) const { return m_start_expression; }
-    bool endExpression    ( ) const { return m_end_expression; }
-    TimeNode* parentNode  ( ) const { return m_parent_node; }
-    TimeNode* follow      ( ) const { return m_follow; }
-    WorldStream* source   ( ) const { return m_source; }
-    bool condition        ( ) const { return m_condition; }
-    bool running          ( ) const { return m_running; }
-    qreal date            ( ) const;
-    qreal duration        ( ) const;
+    //---------------------------------------------------------------------------------------------
+    virtual void
+    rwrite(pool& inputs, pool& outputs, vector_t nframes) override
+    //---------------------------------------------------------------------------------------------
+    {
+        auto begin      = inputs.audio[inputs::begin][0];
+        auto end_in     = inputs.audio[inputs::end_in][0];
+        auto wait       = inputs.audio[inputs::wait][0];
+        auto duration   = inputs.audio[inputs::duration][0];
+        auto cancel     = inputs.audio[inputs::cancel][0];
+        auto end_out    = outputs.audio[outputs::end_out][0];
 
-    void setDate        ( qreal date );
-    void setDuration    ( qreal duration );
-    void setCondition   ( bool condition );
-    void setSource      ( WorldStream* source );
-    void setFollow      ( TimeNode* follow );
-    void setParentNode  ( TimeNode* node );
-    void setRunning     ( bool running );
+        // speed TODO
+        auto phase  = m_phase;
+        auto rate   = m_rate;
+        auto state  = m_state;
 
-    void setStartExpression ( bool expr );
-    void setEndExpression   ( bool expr );
+        for (vector_t f = 0; f < nframes; ++f)
+        {
+            switch(state)
+            {
+            case state::waiting:
+            {
+                if (phase >= wait[f]) {
+                    state = running;
+                    QMetaObject::invokeMethod(this, "start", Qt::QueuedConnection);
+                    phase = 0;
+                } else {
+                    phase++;
+                }
 
-    Q_INVOKABLE void reset ( );
-    Q_INVOKABLE void playFrom ( quint64 ms );
-    Q_INVOKABLE quint64 absoluteDate() const;
+                break;
+            }
+            case state::running:
+            {
+                if (phase >= duration[f]) {
+                    state = ended;
+                    QMetaObject::invokeMethod(this, "end", Qt::QueuedConnection);
+                    end_out[f] = 1;
+                    phase = 0;
+                } else if (duration[f] >= 0) {
+                    // if duration is infinite, do not increment phase?
+                    // to be tested
+                    phase++;
+                }
 
-    Q_INVOKABLE void suspend ( );
-    Q_INVOKABLE void resume  ( );
+                break;
+            }
+            }
 
-    signals:
-    void startExpressionChanged ( );
-    void endExpressionChanged ( );
-    void afterChanged  ( );
-    void sourceChanged ( );
-    void parentNodeChanged ( );
-    void start    ( );
-    void end      ( );
+            if (cancel[f] > 0) {
+                // cancel will always have the highest priority
+                // we don't output or signal anything
+                phase = 0;
+                state = off;
+            }
 
-    void conditionChanged  ( );
+            else if (end_in[f] > 0) {
+                // in that case, we output the end signals
+                end_out[f] = 1;
+                QMetaObject::invokeMethod(this, "end", Qt::QueuedConnection);
+                state = ended;
+                phase = 0;
+            }
 
-    protected slots:
-    virtual void onTick   ( qint64 sz );
-    virtual void onBegin  ( );
-    virtual void onStop   ( );
+            else if (begin[f] > 0) {
+                phase = 0;
+                if (wait[f] > 0)
+                     state = waiting;
+                else state = running;
+            }
+        }
 
-    protected:
-    static void appendSubnode  ( QQmlListProperty<TimeNode>*, TimeNode* );
-    static int subnodesCount   ( QQmlListProperty<TimeNode>* );
-    static TimeNode* subnode   ( QQmlListProperty<TimeNode>*, int );
-    static void clearSubnodes  ( QQmlListProperty<TimeNode>* );
+        m_phase = phase;
+        m_state = state;
+    }
 
-    QVector<TimeNode*> m_subnodes;
-    TimeNode* m_follow = nullptr;
-    TimeNode* m_parent_node = nullptr;
+    //---------------------------------------------------------------------------------------------
+    Q_INVOKABLE qreal
+    sec(qreal s) { return s*m_rate; }
 
-    bool m_has_start_expression = false;
-    bool m_has_end_expression = false;
-    bool m_start_expression = false;
-    bool m_end_expression = false;
-    bool m_suspended = false;
-    bool m_running = false;
-    bool m_condition = true;
-    bool m_infinite = false;
-
-    WorldStream* m_source = nullptr;
-
-    qreal m_date = 0;
-    qreal m_duration = 0;
-    quint64 m_clock = 0;
+    //---------------------------------------------------------------------------------------------
+    Q_INVOKABLE qreal
+    min(qreal m)
+    //---------------------------------------------------------------------------------------------
+    {
+        quint64 s = floor(m);
+        return (s*60.0+((m-s)*100.0))*m_rate;
+    }
 };
 
+//=================================================================================================
 class Automation : public TimeNode
+//=================================================================================================
 {
     Q_OBJECT
 
-    Q_PROPERTY  ( qreal from READ from WRITE setFrom )
-    Q_PROPERTY  ( qreal to READ to WRITE setTo )
-    Q_PROPERTY  ( QObject* target READ target WRITE setTarget )
-    Q_PROPERTY  ( QString property READ property WRITE setProperty )
+    WPN_DECLARE_AUDIO_INPUT (from, 1)
+    WPN_DECLARE_AUDIO_INPUT (to, 1)
+    WPN_DECLARE_AUDIO_OUTPUT(output, 1)
 
-    public:
-    Automation();
+public:
 
-    virtual void componentComplete() override;
+    //---------------------------------------------------------------------------------------------
+    Automation()
+    //---------------------------------------------------------------------------------------------
+    {
 
-    qreal from  () const { return m_from; }
-    qreal to    () const { return m_to; }
+    }
 
-    QObject* target   ( ) const { return m_target; }
-    QString property  ( ) const { return m_property_str; }
+    //---------------------------------------------------------------------------------------------
+    virtual void
+    rwrite(pool& inputs, pool& outputs, vector_t nframes) override
+    //---------------------------------------------------------------------------------------------
+    {
 
-    void setFrom      ( qreal from );
-    void setTo        ( qreal to );
-    void setTarget    ( QObject* target );
-    void setProperty  ( QString property );
 
-    public slots:
-    virtual void onTick   ( qint64 sz ) override;
-    virtual void onBegin  ( );
-    virtual void onStop   ( );
-
-    void onFollowBegin ( );
-
-    private:
-    qreal m_phase;
-    qreal m_from        = 0;
-    qreal m_to          = 1;
-    qreal m_ex_from     = 0;
-    qreal m_ex_to       = 1;
-
-    QObject* m_target;
-    QString m_property_str;
-    QMetaProperty m_property;
+    }
 };
 
+//=================================================================================================
 class Loop : public TimeNode
+//=================================================================================================
 {
     Q_OBJECT
 
-    Q_PROPERTY  ( int times READ times WRITE setTimes )
-    Q_PROPERTY  ( TimeNode* pattern READ pattern WRITE setPattern )
+    WPN_DECLARE_AUDIO_INPUT(times, 1)
+    WPN_DECLARE_AUDIO_OUTPUT(lap, 1)
 
-    public:
-    Loop();
+public:
 
-    virtual void componentComplete() override;
+    //---------------------------------------------------------------------------------------------
+    Loop()
+    //---------------------------------------------------------------------------------------------
+    {
 
-    quint64 times       () const { return m_times; }
-    TimeNode* pattern   () const { return m_pattern; }
+    }
 
-    void setTimes   ( quint64 times );
-    void setPattern ( TimeNode* pattern );
+    //---------------------------------------------------------------------------------------------
+    virtual void
+    rwrite(pool& inputs, pool& outputs, vector_t nframes) override
+    //---------------------------------------------------------------------------------------------
+    {
 
-    virtual void appendSubnode  ( TimeNode* ) override;
-    virtual int subnodesCount   ( ) const override;
-    virtual TimeNode* subnode   ( int ) const override;
-    virtual void clearSubnodes  ( ) override;
-
-    signals:
-    void loop(int count);
-
-    public slots:
-    virtual void onTick   ( qint64 sz ) override;
-    virtual void onBegin  ( ) override;
-    void onPatternStop    ( );
-    void onSourceChanged  ( );
-
-    private:
-    TimeNode* m_pattern = nullptr;
-    quint64 m_times = 0;
-    quint64 m_count = 1;
-    qreal m_pattern_clock = 0;
+    }
 };
 
 #endif // AUDIOCLOCK_HPP
