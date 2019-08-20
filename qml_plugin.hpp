@@ -3,13 +3,18 @@
 
 #include <QQmlExtensionPlugin>
 
+//=================================================================================================
 class qml_plugin : public QQmlExtensionPlugin
+//=================================================================================================
 {
     Q_OBJECT
-    Q_PLUGIN_METADATA ( IID QQmlExtensionInterface_iid )
+    Q_PLUGIN_METADATA (IID QQmlExtensionInterface_iid)
 
 public:
-    void registerTypes(const char* uri) override;
+
+    //---------------------------------------------------------------------------------------------
+    void
+    registerTypes(const char* uri) override;
 };
 
 #endif // QML_PLUGIN_HPP
