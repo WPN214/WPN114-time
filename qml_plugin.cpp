@@ -11,11 +11,8 @@ qml_plugin::registerTypes(const char *uri)
     Q_UNUSED(uri)
 
     qmlRegisterType<TimeNode, 1>
-    ("WPN114.Time", 1, 1, "Node");
-
-    qmlRegisterType<Loop, 1>
-    ("WPN114.Time", 1, 0, "Loop");
+    ("WPN114.Audio.Time", 1, 1, "Node");
 
     qmlRegisterType<Automation, 1>
-    ("WPN114.Time", 1, 0, "Automation");
+    ("WPN114.Audio.Time", 1, 1, "Automation");
 }

@@ -139,6 +139,7 @@ public:
                 // just a silent reset
                 phase = 0;
                 state = off;
+                m_laps = 0;
             }
 
             else if (end_in[f] > 0)
@@ -161,6 +162,7 @@ public:
                     end_out[f]   = 1;
                     QMetaObject::invokeMethod(this, "end", Qt::QueuedConnection);
                     state = ended;
+                    m_laps = 0;
                 }
 
                 phase_out[f] = 1;
